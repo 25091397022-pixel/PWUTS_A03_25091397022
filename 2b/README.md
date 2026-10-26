@@ -1,4 +1,4 @@
-# Job 2b – Halaman Konten Interaktif (`pages/menu.html`)
+# 2b – Halaman Konten Interaktif (`pages/menu.html`)
 
 **Proyek:** Sistem Reservasi Tempat dan Pemesanan Menu (Teman Setia Surabaya)
 **Mata kuliah:** Pemrograman Web – Manajemen Informatika, Fakultas Vokasi, Universitas Negeri Surabaya

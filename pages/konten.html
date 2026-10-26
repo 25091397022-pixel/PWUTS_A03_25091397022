@@ -1,0 +1,97 @@
+<h2>Dashboard</h2>
+<div class="fil">
+  <label>Jenis<select id="jn"><option value="all">Semua</option><option value="food">Food</option><option value="beverage">Beverage</option></select></label>
+  <label>Periode<select id="pd"><option value="7">7 hari terakhir</option><option value="14">14 hari terakhir</option><option value="30">30 hari terakhir</option><option value="range">Pilih rentang tanggal</option></select></label>
+<label id="l1" hidden>Dari tanggal<input id="d1" type="date"><span class="err"></span></label>
+<label id="l2" hidden>Sampai tanggal<input id="d2" type="date"><span class="err"></span></label>
+</div>
+<div class="g">
+  <section class="card big"><h3>Penjualan</h3><div class="n" id="tl"></div><p>Rata-rata per hari: <b id="av"></b></p><p id="tg" style="margin:0"></p><div class="bars" id="bar"></div><div class="lab" id="lab"></div></section>
+  <section class="card mint"><h3>Pesanan aktif</h3><div class="n" id="oa"></div><p>Draft dan sedang diproses</p></section>
+  <section class="card sun"><h3>Reservasi pending</h3><div class="n" id="pn"></div><p>Perlu verifikasi</p></section>
+  <section class="card"><h3>Meja terisi</h3><div class="ring" id="rg"><i id="rt"></i></div></section>
+  <section class="card"><h3>Metode bayar</h3><div class="d" id="dn"></div><ul class="lgd" id="mb"></ul></section>
+  <section class="card s2"><h3>Menu terlaris</h3><div id="tp"></div></section>
+  <section class="card s2"><h3>Pembayaran terakhir</h3><div id="pt"></div></section>
+</div>
+<script>
+(function(){
+  var F=[1.9,2.4,2.1,2.8,3.6,4.4,3.9],B=[1.1,1.4,1.2,1.7,2.2,2.6,2.3],BLN=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+  var MAKS=62;
+  var T=[['Bubur Bakar Claypot','food',182],['Teh Tarik Panas','beverage',165],['Roti Bakar Cokelat Keju','roti bakar',140],['Kopi Susu','beverage',128],['Nasi Goreng Setia','food',97],['Es Teh Lemon Sereh','beverage',90]];
+  var P=[['QRIS',.41,'#5b3df5'],['Tunai',.32,'#19c3a1'],['Debit',.17,'#ffb020'],['Transfer',.10,'#ff6b8b']];
+  
+  // Kartu yang membaca data bersama (DB): pesanan aktif, reservasi pending, meja terisi, pembayaran terakhir
+  function tgl(s){var p=s.split('-');return new Date(+p[0],p[1]-1,+p[2])}
+  function fmt(d){return d.getDate()+' '+BLN[d.getMonth()]+' '+d.getFullYear()}
+  function pad(n){return (n<10?'0':'')+n}
+  function iso(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+  function acak(d){var k=d.getFullYear()*372+d.getMonth()*31+d.getDate();return ((k*9301+49297)%233280)/233280}
+  function rentang(){
+  var p=$('#pd').val(),b=tgl(today()),a,n;
+  if(p!=='range'){n=+p;return{a:new Date(b.getFullYear(),b.getMonth(),b.getDate()-n+1),n:n}}
+  var x=$('#d1').val(),y=$('#d2').val(),ok=1;
+  ok&=chk('#d1',x!=='','Pilih tanggal awal.');
+  ok&=chk('#d2',y!=='','Pilih tanggal akhir.');
+  if(!ok)return 0;
+  a=tgl(x);var e=tgl(y);n=Math.round((e-a)/864e5)+1;
+  ok&=chk('#d2',n>=1,'Tanggal akhir tidak boleh sebelum tanggal awal.');
+  if(ok)ok&=chk('#d2',e<=b,'Tanggal akhir tidak boleh melebihi hari ini.');
+  if(ok)ok&=chk('#d2',n<=MAKS,'Rentang maksimal '+MAKS+' hari.');
+  return ok?{a:a,n:n}:0;
+  }
+  function live(){
+    var i,a=0,r=0,m=0,s='',pct;
+    for(i=0;i<DB.ord.length;i++){if(DB.ord[i].st==='draft'||DB.ord[i].st==='ordered')a++}
+    for(i=0;i<DB.rsv.length;i++){if(DB.rsv[i].st==='pending')r++}
+    for(i=0;i<DB.meja.length;i++){if(DB.meja[i].st==='occupied')m++}
+    pct=DB.meja.length?Math.round(m/DB.meja.length*100):0;
+    $('#oa').text(a);$('#pn').text(r);$('#rt').text(m+'/'+DB.meja.length);
+    $('#rg').css('background','conic-gradient(#5b3df5 0 '+pct+'%,#e3e0fb 0)');
+    for(i=Math.max(0,DB.pay.length-3);i<DB.pay.length;i++){
+      s='<div class="mt2"><b>'+DB.pay[i].no+'</b><span>'+esc(DB.pay[i].meja)+'</span><span class="tag">'+DB.pay[i].mt+'</span><span>'+rp(DB.pay[i].tt)+'</span></div>'+s;
+    }
+    $('#pt').html(s||'Belum ada pembayaran.');
+  }
+  function draw(){
+  var j=$('#jn').val(),r=rentang();
+  if(!r)return;
+  var n=r.n,v=[],ds=[],sum=0,mx=0,mi=0,i,x,d,k,h,s='',l='',t='',top=0,g='',acc=0,lg='',skala,tt;
+  for(i=0;i<n;i++){
+    d=new Date(r.a.getFullYear(),r.a.getMonth(),r.a.getDate()+i);h=(d.getDay()+6)%7;k=.85+.3*acak(d);
+    x=Math.round(((j!=='beverage'?F[h]:0)+(j!=='food'?B[h]:0))*k*10)/10;
+    v.push(x);ds.push(d);sum+=x;
+    if(x>mx){mx=x;mi=i}
+  }
+  skala=n>14?Math.ceil(n/10):1;
+  for(i=0;i<n;i++){
+    d=ds[i];tt=d.getDate()+' '+BLN[d.getMonth()];
+    s+='<div title="'+tt+': Rp '+v[i].toFixed(1)+' juta" style="height:'+Math.round(v[i]/mx*100)+'%'+(i===mi?';background:#19c3a1':'')+'">'+(n<=10?v[i].toFixed(1):'')+'</div>';
+    l+='<span style="white-space:nowrap">'+(i%skala===0?(n<=10?tt:pad(d.getDate())+'/'+pad(d.getMonth()+1)):'')+'</span>';
+  }
+  $('#bar').html(s);$('#lab').html(l);
+  $('#tg').text(fmt(ds[0])+' sampai '+fmt(ds[n-1])+' ('+n+' hari)');
+  $('#tl').text('Rp '+sum.toFixed(1)+' juta');$('#av').text('Rp '+(sum/n).toFixed(2)+' juta');
+  for(i=0;i<T.length;i++){if((j==='all'||T[i][1]===j)&&T[i][2]*n/7>top)top=T[i][2]*n/7}
+  for(i=0;i<T.length;i++){
+    if(j==='all'||T[i][1]===j)t+='<div class="mt"><span>'+T[i][0]+'</span><i style="width:'+Math.round(T[i][2]*n/7/top*100)+'%"></i><b>'+Math.round(T[i][2]*n/7)+'</b></div>';
+  }
+  $('#tp').html(t);
+  for(i=0;i<P.length;i++){
+    acc+=P[i][1]*100;g+=(i?',':'')+P[i][2]+' 0 '+acc+'%';
+    lg+='<li><i style="background:'+P[i][2]+'"></i>'+P[i][0]+' '+Math.round(P[i][1]*100)+'%<br>Rp '+(sum*P[i][1]).toFixed(2)+' jt</li>';
+  }
+  $('#dn').css('background','conic-gradient('+g+')');$('#mb').html(lg);
+  }
+  $('#pd').on('change',function(){
+  var b=tgl(today()),pakai=this.value==='range';
+  $('#l1,#l2').prop('hidden',!pakai);
+  if(pakai&&!$('#d1').val()){$('#d1').val(iso(new Date(b.getFullYear(),b.getMonth(),b.getDate()-6)));$('#d2').val(today())}
+  draw();
+});
+$('#d1,#d2').attr('max',today());
+$('#jn').on('change',draw);
+$(document).off('change.dash').on('change.dash','#d1,#d2',draw);
+  live();draw();
+})();
+</script>
